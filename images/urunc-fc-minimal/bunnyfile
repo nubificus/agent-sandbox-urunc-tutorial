@@ -1,0 +1,17 @@
+#syntax=harbor.nbfc.io/nubificus/bunny:latest
+version: v0.1
+
+platforms:
+  - arch: amd64
+    monitor: firecracker
+    framework: linux
+
+kernel:
+  source: host
+  path: vmlinux
+
+rootfs:
+  source: host
+  path: rootfs.tar
+
+cmdline: "/executor"

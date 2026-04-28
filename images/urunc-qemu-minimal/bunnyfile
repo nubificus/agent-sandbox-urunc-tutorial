@@ -1,0 +1,17 @@
+#syntax=harbor.nbfc.io/nubificus/bunny:latest
+version: v0.1
+
+platforms:
+  - arch: amd64
+    monitor: qemu
+    framework: linux
+
+kernel:
+  source: host
+  path: bzImage
+
+rootfs:
+  source: host
+  path: rootfs.tar
+
+cmdline: "/executor"

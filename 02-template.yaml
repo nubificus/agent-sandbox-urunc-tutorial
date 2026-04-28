@@ -1,0 +1,18 @@
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: urunc-go
+  namespace: urunc-tutorial
+spec:
+  podTemplate:
+    spec:
+      runtimeClassName: urunc
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+        - 8.8.8.8
+      containers:
+      - name: executor
+        image: harbor.nbfc.io/nubificus/urunc-sandbox-qemu-minimal:latest
+        ports:
+        - containerPort: 8080

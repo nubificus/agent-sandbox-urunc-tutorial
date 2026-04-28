@@ -1,0 +1,8 @@
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxClaim
+metadata:
+  name: agent-beta
+  namespace: urunc-tutorial
+spec:
+  sandboxTemplateRef:
+    name: urunc-go
