@@ -1,5 +1,6 @@
 // Minimal HTTP executor for urunc sandbox images.
-// Serves /health, /command (shell exec), /file/read, /file/write, /file/list.
+// Serves /health, /execute (code runner), /command (shell exec),
+// /file/read, /file/write, /file/list.
 // Build as a static binary: CGO_ENABLED=0 go build -ldflags="-s -w" -o executor .
 package main
 
@@ -17,6 +18,11 @@ import (
 	"time"
 )
 
+type executeRequest struct {
+	Code     string `json:"code"`
+	Language string `json:"language"`
+	Timeout  uint   `json:"timeout,omitempty"`
+}
 type commandRequest struct {
 	Command string `json:"command"`
 	Timeout uint   `json:"timeout,omitempty"`
@@ -39,6 +45,50 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func handleExecute(r *http.Request) (any, int, error) {
+	var req executeRequest
+	if err := readJSON(r, &req); err != nil {
+		return nil, http.StatusBadRequest, err
+	}
+	if req.Code == "" {
+		return nil, http.StatusBadRequest, fmt.Errorf("code is required")
+	}
+
+	var interpreter []string
+	switch req.Language {
+	case "python", "python3":
+		interpreter = []string{"python3", "-c", req.Code}
+	case "sh", "shell", "bash":
+		interpreter = []string{"sh", "-c", req.Code}
+	case "":
+		return nil, http.StatusBadRequest, fmt.Errorf("language is required")
+	default:
+		return nil, http.StatusBadRequest, fmt.Errorf("unsupported language: %s", req.Language)
+	}
+
+	var cmd *exec.Cmd
+	var outBuf, errBuf bytes.Buffer
+	exitCode := 0
+	if req.Timeout > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(req.Timeout)*time.Second)
+		defer cancel()
+		cmd = exec.CommandContext(ctx, interpreter[0], interpreter[1:]...)
+	} else {
+		cmd = exec.Command(interpreter[0], interpreter[1:]...)
+	}
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1
+			errBuf.WriteString(err.Error())
+		}
+	}
+	return commandResponse{Stdout: outBuf.String(), Stderr: errBuf.String(), ExitCode: exitCode}, http.StatusOK, nil
 }
 
 func handleCommand(r *http.Request) (any, int, error) {
@@ -197,6 +247,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/execute", wrap(handleExecute))
 	mux.HandleFunc("/command", wrap(handleCommand))
 	mux.HandleFunc("/file/read", wrap(handleFileRead))
 	mux.HandleFunc("/file/write", wrap(handleFileWrite))
